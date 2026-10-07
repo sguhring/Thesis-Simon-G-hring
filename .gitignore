@@ -34,3 +34,6 @@ Thumbs.db
 # Papers are copyrighted; keep local only (organisers' M6 code in literature/m6_official is fine)
 literature/*.pdf
 literature/m6.txt
+
+# Other teams' M6 code, cloned for validation only (own licences; some have none)
+external/

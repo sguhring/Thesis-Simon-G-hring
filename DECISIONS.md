@@ -55,16 +55,42 @@ before any model is run so they cannot be tuned to results.
 
 Candidates with a published description in the IJF M6 special issue (vol. 41, issue 4, 2025):
 
-- de Vilmarest & Werge, adaptive volatility method for probabilistic forecasting (pp. 1514-1520).
-- Quasi-average predictions and regression to the trend (5th overall; pp. 1505-1513).
-- Stanvek, hypernetworks and adversarial portfolios (1st duathlon, 4th forecasting; arXiv 2406.19105).
-- Catlin, AutoTS (won the investment challenge; pp. 1485-1493).
-- Robust returns ranking prediction and portfolio optimization for M6 (ScienceDirect S0169207024000359).
-- Makridakis, Spiliotis & Michailidis, Avoiding overconfidence: symmetric quintile probabilities.
+1. de Vilmarest & Werge, adaptive volatility (AdaVol) for probabilistic forecasting. Team AdaGaussMC,
+   5th forecasting, 7th overall. pp. 1514-1520; free preprint arXiv 2303.01855; code
+   https://github.com/nicklaswerge/AdaVol. Method: GARCH-type variance recursion with parameters
+   updated online by projected AdaGrad (QML loss); returns independent Gaussian with class-specific
+   mean; quintile probabilities by Monte Carlo; weights by SGD on expected IR. Daily prices only.
+   -> Directly a variance model, so it sits next to GARCH(1,1) in every table. First pick.
+2. Vilar, quasi-average predictions and regression to the trend. 5th overall. pp. 1505-1513
+   (ScienceDirect S0169207024001341). Method: shrink predictions toward asset-class and temporal
+   averages; low-variability forecasts. -> The "do not be overconfident" strategy made explicit; a
+   natural foil to the ML models. Second pick.
+3. Staněk, hypernetworks and adversarial portfolios. 1st duathlon, 4th forecasting. arXiv 2407.20352.
+   Meta-learning: a hypernetwork generates the parameters of a base time-series model, validated on
+   M4. -> Heavy to reimplement, no variance model at its core. Optional third, drop first.
+4. Catlin, AutoTS, won the investment challenge, pp. 1485-1493. -> AutoML library wrapper; little
+   to represent as a model. Not used.
+- Supporting: Makridakis, Spiliotis & Michailidis, Avoiding overconfidence (pp. 1395-1403,
+  S016920702400102X): symmetric quintile probabilities as a shrinkage benchmark.
 
-The official repo has evaluation code and all submissions, but no team code. Pick the 2-4 whose
+The official repo has evaluation code and all submissions, but no team code. Pick methods whose
 forecasting step produces a return distribution per asset (so variance and quantiles can be read off),
-not only quintile probabilities. Rule out methods whose description is too thin to reimplement.
+not only quintile probabilities.
+
+**Team code found (7 Oct 2026), cloned to `external/` (git-ignored, own licences):**
+
+| Repo | Team / rank | Licence | What is there |
+|---|---|---|---|
+| nicklaswerge/AdaVol | de Vilmarest & Werge, 5th forecasting | GPL-3.0 | One notebook: the online QML GARCH(p,q) recursion (`adavol`) with projected-gradient updates, demo on S&P 500. The M6 pipeline (Gaussian MC, RPS optimisation, portfolio) is NOT included; rebuild from the paper. |
+| jmgvilar/M6competition | Vilar, team db21f28b, 5th overall | MIT | Full reproducibility notebook + data; produces the paper's Figures 1-5 (quintile histograms, RPS by strategy, returns, IR). Method fully runnable. |
+| sebrad/M6 | SebastianR, 3rd forecasting track | none | R: linear models for the weekly conditional mean, bootstrap covariance from daily data, multivariate t(4) Monte Carlo, rank counting. The cleanest "distribution -> quintile probabilities" pipeline; no licence, so reimplement, do not copy. |
+| stanek-fi/M6 | Staněk, 1st duathlon | none | Full R/torch code, unrefactored. Readme states the quintile predictions "predominantly model volatility" and carry little directional information: cite this. |
+| aleksei-mashlakov/m6_competition | 16th forecasting | MIT | LightGBM multiclass on 20-day rank with isotonic recalibration. Candidate ML representative with code. |
+
+Validation plan: (1) run Vilar's notebook and check its RPS series against team db21f28b in
+`ijf_summary_leaderboard.xlsx`; (2) run `adavol` on one M6 asset and compare the fitted path with
+arch's GARCH(1,1); (3) use sebrad's bootstrap-covariance + t Monte Carlo as the common
+"distribution -> ranks" step for every model in the M6 setting.
 
 ## 7. Bloomberg (decided)
 
