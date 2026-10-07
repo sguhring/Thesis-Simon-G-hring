@@ -1,0 +1,39 @@
+---
+title: "Which models get volatility right? Overconfidence in machine-learning and GARCH forecasts of stock return variance"
+author: "Simon Gühring"
+date: today
+format:
+  pdf:
+    toc: true
+    number-sections: true
+  docx: default
+bibliography: references.bib
+---
+
+# Introduction
+
+<!-- M6 finding: forecasters overconfident, models unidentifiable. Research question. Contribution. -->
+
+# The M6 competition and the overconfidence result
+
+<!-- Design, scores (RPS, IR), Hypothesis 7 calibration curve. -->
+
+# Model representation
+
+<!-- Reimplemented M6 methods (2-4), classic benchmarks (naive, GARCH, GJR), HAR family, ML. Forecast-table contract. -->
+
+# Data
+
+<!-- VOLARE, Yahoo, M6 files. Checks. Decisions 2 and 3. Exploration figures (from manuscript/figures). -->
+
+# M6 replication
+
+<!-- Scores vs leaderboard; calibration curve redrawn with identified models. -->
+
+# Transfer to 40 US stocks, 2015-2026
+
+<!-- QLIKE, MZ, coverage, MSIS, by horizon and regime. -->
+
+# Discussion and conclusion
+
+# References

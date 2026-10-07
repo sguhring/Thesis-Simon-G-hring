@@ -1,0 +1,72 @@
+# Frozen design choices. Every script reads this file; nothing is hard-coded elsewhere.
+# Change a value here, note why in DECISIONS.md, re-run the pipeline.
+
+sample:
+  start: "2015-01-02"
+  end: "2026-08-31"
+  tickers:  # VOLARE stock universe (Dow 30 + 10 S&P 100 names)
+    [AAPL, ADBE, AMD, AMGN, AMZN, AXP, BA, CAT, CRM, CSCO,
+     CVX, DIS, GE, GOOGL, GS, HD, HON, IBM, JNJ, JPM,
+     KO, MCD, META, MMM, MRK, MSFT, NFLX, NKE, NVDA, ORCL,
+     PG, PM, SHW, TRV, TSLA, UNH, V, VZ, WMT, XOM]
+  market_proxy: IVV
+  vix: "^VIX"
+
+target:
+  # Realised variance measure used as the open-to-close truth.
+  # rv5_ss = 5-minute subsampled realised variance (VOLARE default).
+  # bv5_ss = bipower variation (jump-robust); candidate for after-close earnings days.
+  intraday_measure: rv5_ss
+  # Add squared overnight log return (prev close -> open) so the target covers
+  # the same hours as the close-to-close return the models see.  DECISIONS.md #2
+  add_overnight: true
+  # How to treat the 459 after-close earnings days where VOLARE's 16:05 window
+  # captures the post-announcement jump.  one of: keep | bv5 | flag_only
+  earnings_days: flag_only
+  log_target: true
+
+horizons: [1, 20]          # trading days ahead; 20 matches the M6 evaluation window
+
+evaluation:
+  first_origin: "2018-01-02"   # first forecast origin; 3 years of training before it
+  origin_frequency: "monthly"  # re-estimate at each origin
+  quantiles: [0.005, 0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975, 0.995]
+  interval_levels: [0.90, 0.95, 0.99]
+  m6_naive_rps: 0.16
+
+regimes:
+  calm:        {start: "2018-01-01", end: "2019-12-31"}
+  covid:       {start: "2020-02-15", end: "2020-06-30"}
+  recovery:    {start: "2020-07-01", end: "2021-12-31"}
+  rate_shock:  {start: "2022-01-01", end: "2022-12-31"}
+  post_2023:   {start: "2023-01-01", end: "2025-03-31"}
+  tariff_2025: {start: "2025-04-01", end: "2025-06-30"}
+  vix_terciles: true   # also split test days by VIX tercile
+
+m6:
+  # Official competition files (Mcompetitions/M6-methods on GitHub)
+  repo_raw: "https://raw.githubusercontent.com/Mcompetitions/M6-methods/main"
+  data_files:            # -> data/raw/m6/ (not in git)
+    - "assets_m6.csv"
+    - "IJF paper/submissions.csv"
+    - "IJF paper/summary_leaderboard.xlsx"
+  code_files:            # -> literature/m6_official/ (in git, organisers' code for reference)
+    - "readme.md"
+    - "RPS and IR calculation.py"
+    - "RPS and IR calculation.R"
+    - "IJF paper/readme.md"
+    - "IJF paper/Hypothesis7.R"
+    - "IJF paper/Baseline for evaluating the hypotheses.R"
+    - "IJF paper/s6_load m6 data clean.py"
+  first_submission: "2022-03-06"
+  n_periods: 12
+  window_days: 20   # each evaluation period is roughly 4 weeks / 20 trading days
+
+models:
+  naive:   {window: 22}
+  garch:   {p: 1, q: 1, dist: t}
+  gjr:     {p: 1, o: 1, q: 1, dist: t}
+  har:     {lags: [1, 5, 22]}
+  lightgbm: {n_estimators: 500, learning_rate: 0.03, num_leaves: 15, pooled: true}
+
+seed: 20260916

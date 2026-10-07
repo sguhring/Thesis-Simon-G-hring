@@ -1,0 +1,12 @@
+[project]
+name = "thesis"
+version = "0.1.0"
+description = "Overconfidence in ML and GARCH forecasts of stock return variance (M6 + VOLARE)"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

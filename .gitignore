@@ -1,0 +1,36 @@
+# Data: raw inputs are re-downloadable (see src/thesis/data/), processed files are rebuilt by the pipeline
+data/raw/
+data/processed/
+outputs/
+!outputs/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Node (slide builder)
+node_modules/
+
+# Quarto / LaTeX build artefacts
+manuscript/_book/
+manuscript/_freeze/
+manuscript/*.pdf
+manuscript/*.docx
+manuscript/*.html
+*.aux
+*.log
+*.synctex.gz
+
+# OS / editor
+.DS_Store
+Thumbs.db
+~$*
+.vscode/
+.idea/
+
+# Papers are copyrighted; keep local only (organisers' M6 code in literature/m6_official is fine)
+literature/*.pdf
+literature/m6.txt
