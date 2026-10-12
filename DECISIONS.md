@@ -184,3 +184,34 @@ extra feature block and one robustness table.
 
 1. Neural network with distributional output. 2. Fourth M6 method. 3. VIX-tercile split (keep calendar
 regimes). The M6 replication chapter is now core and is not cut.
+
+## 9. Target variable, by horizon and setting (decided, 12 Oct 2026)
+
+The daily truth is fixed by decisions 2 and 3: `rv_target_t = intraday_t + o_t^2`, with `intraday_t` =
+`rv5_ss` (or `medrv5` on the 459 after-close earnings days) and `o_t` the dividend-adjusted overnight
+return. Everything below derives from it. Built by `src/thesis/features.py`.
+
+**VOLARE setting (40 stocks, 2015-2026).**
+
+- `y_h1  = log( rv_target_{t+1} )`: the log of tomorrow's variance.
+- `y_h20 = log( mean of rv_target over t+1 .. t+20 )`: the log of the *average daily* variance over the
+  next 20 trading days, as in the HAR literature (Corsi 2009; Christensen et al. 2023). Not the sum.
+- The variance of the 20-day cumulative return, which the interval and coverage scores need, is the
+  sum of the daily variances, i.e. 20 times the average (daily returns are treated as uncorrelated;
+  the cross term was measured at +0.1 percent of the stick). So a model forecasts the average and the
+  scoring code multiplies by h before building return intervals.
+- Models work on the log scale because the variance spans four orders of magnitude. A model that
+  forecasts the log must state how it returns to the variance scale: the plain exponential gives the
+  conditional median of the variance, which is below its mean, and the gap grows with forecast
+  uncertainty. Each model records its retransformation (none, or the residual-variance correction
+  exp(mu + s^2/2)) in the forecast table's `model` name, because this is one of the candidate causes of
+  machine-learning overconfidence (hypothesis on the training objective).
+
+**M6 setting (100 assets, 2022-2023).** No intraday data, so the truth for the 20-day window is the sum
+of squared daily log returns over the window (close-to-close, from the organisers' price file). This
+is a noisier proxy than VOLARE's, which is why the M6 chapter carries the external yardstick (RPS,
+calibration curve) and the VOLARE chapter carries the variance inference.
+
+**Scoring.** Accuracy losses (QLIKE, MSE) compare the variance forecast with the realised variance on
+the variance scale, never on the log scale (Patton 2011). Calibration scores (coverage, interval
+score, PIT) compare return quantiles derived from the variance forecast with the realised h-day return.
