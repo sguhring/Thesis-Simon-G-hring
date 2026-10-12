@@ -20,6 +20,8 @@ FEATURES = PROCESSED / "features.parquet"
 FORECASTS = PROCESSED / "forecasts.parquet"
 SCORES = PROCESSED / "scores.parquet"
 
+EXTERNAL = ROOT / "external"   # other teams' M6 code, cloned for validation only (git-ignored)
+
 OUTPUTS = ROOT / "outputs"
 FIGURES = ROOT / "manuscript" / "figures"
 TABLES = ROOT / "manuscript" / "tables"

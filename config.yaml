@@ -18,11 +18,16 @@ target:
   # bv5_ss = bipower variation (jump-robust); candidate for after-close earnings days.
   intraday_measure: rv5_ss
   # Add squared overnight log return (prev close -> open) so the target covers
-  # the same hours as the close-to-close return the models see.  DECISIONS.md #2
+  # the same hours as the close-to-close return the models see.  DECISIONS.md #2 (decided 12 Oct 2026)
   add_overnight: true
-  # How to treat the 459 after-close earnings days where VOLARE's 16:05 window
-  # captures the post-announcement jump.  one of: keep | bv5 | flag_only
-  earnings_days: flag_only
+  # Overnight return measured from the ex-dividend previous close (close - dividend), so the
+  # mechanical price drop on ex-dividend days is not counted as variance.
+  dividend_adjust_overnight: true
+  # After-close earnings days (459): VOLARE's 16:05 window holds the post-announcement jump, which
+  # belongs to the NEXT day's close-to-close return and already enters it through the overnight term.
+  # On flagged days the intraday measure is replaced.  one of: keep | flag_only | bv5 | medrv5
+  # DECISIONS.md #3 (decided 12 Oct 2026): medrv5
+  earnings_days: medrv5
   log_target: true
 
 horizons: [1, 20]          # trading days ahead; 20 matches the M6 evaluation window

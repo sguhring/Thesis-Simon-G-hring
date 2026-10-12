@@ -31,8 +31,13 @@ def load_yahoo(cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     g = y.groupby("symbol")
     # close-to-close log return from dividend- and split-adjusted close
     y["ret"] = g["adj_close"].transform(lambda s: np.log(s).diff())
-    # overnight: previous close -> today's open, from split-adjusted (not dividend-adjusted) prices
-    y["ret_overnight"] = np.log(y["open"]) - np.log(g["close"].shift(1))
+    # overnight: previous close -> today's open, from split-adjusted (not dividend-adjusted) prices.
+    # On an ex-dividend day the open is quoted after the dividend has left the price, so the previous
+    # close is reduced by the dividend first (DECISIONS.md #2).
+    prev_close = g["close"].shift(1)
+    if cfg["target"].get("dividend_adjust_overnight", True):
+        prev_close = prev_close - y["dividend"].fillna(0.0)
+    y["ret_overnight"] = np.log(y["open"]) - np.log(prev_close)
     y["ret_intraday"] = np.log(y["close"]) - np.log(y["open"])
     stocks = y[y.symbol.isin(cfg["sample"]["tickers"])][
         ["date", "symbol", "open", "close", "adj_close", "volume", "dividend", "split",
@@ -60,8 +65,14 @@ def build(cfg: dict) -> pd.DataFrame:
     p["earnings_afterclose"] = p["earnings_afterclose"].fillna(False).astype(bool)
 
     t = cfg["target"]
-    base = p["bv5_ss"].where(p["earnings_afterclose"], p[t["intraday_measure"]]) \
-        if t["earnings_days"] == "bv5" else p[t["intraday_measure"]]
+    replacement = {"keep": None, "flag_only": None, "bv5": "bv5_ss", "medrv5": "medrv5"}[t["earnings_days"]]
+    base = p[t["intraday_measure"]]
+    if replacement is not None:
+        # DECISIONS.md #3: on after-close earnings days the jump sits in the last five minutes of the
+        # VOLARE window and belongs to the next day's return, so the intraday part is replaced by a
+        # jump-robust measure and the jump enters the target once, through the next overnight term.
+        base = p[replacement].where(p["earnings_afterclose"], base)
+    p["rv_intraday_used"] = base
     p["rv_target"] = base + (p["ret_overnight"] ** 2 if t["add_overnight"] else 0.0)
     p["log_rv_target"] = np.log(p["rv_target"])
 
