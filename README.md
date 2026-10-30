@@ -36,9 +36,13 @@ horizon, with variance, return quantiles and M6 quintile probabilities. Scoring 
 ## Setup
 
 ```bash
-pip install -r requirements.txt
-pip install -e .
+uv venv                                   # or: python -m venv .venv
+uv pip install --python .venv -r requirements.txt -e .   # or: .venv\Scripts\pip install ...
 ```
+
+The notebooks in `notebooks/` use the same environment: in VS Code pick the `.venv` interpreter as the
+kernel. If `import matplotlib` fails in a notebook, the selected kernel is a Python without the
+requirements; rerun the install line above into it.
 
 Raw data are not in git:
 
