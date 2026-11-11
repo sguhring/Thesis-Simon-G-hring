@@ -1,0 +1,72 @@
+# Working notes for Claude Code sessions in this repo
+
+Read this first, then `DECISIONS.md` (open items at the end of entry 6) and `README.md` (milestones).
+
+## What this is
+
+Master's dissertation, Católica Lisbon, 2025/26: "Which models get volatility right? Overconfidence in
+machine-learning and GARCH forecasts of stock return variance." Supervisor: Nicolò Bertani.
+Two settings: the M6 competition (100 assets, 2022-23, scored with the organisers' RPS against the
+leaderboard) and VOLARE (40 US stocks, 2015-2026, realised variance observed, so under-estimation can
+be tested directly).
+
+## Where things live
+
+- `config.yaml`: frozen design values. Never hard-code a value that belongs here.
+- `DECISIONS.md`: one entry per design choice, with status and evidence. Any choice a reader could
+  question goes here before it goes into code. Nicolò's feedback is logged here too.
+- `src/thesis/`: the package. `models/base.py` is the forecast-table contract every model must
+  return; `evaluate/scores.py` reads only that table. `features.py` builds the targets of decision 9.
+- `notebooks/`: exploration and validation scripts only. Nothing the manuscript depends on lives here.
+- `manuscript/index.qmd`: Quarto source, still a chapter skeleton. Figures and tables are generated
+  by the pipeline into `manuscript/figures` and `manuscript/tables`.
+- `notes/`: seminar prep, the Milestone 1 figures and scripts, the primer.
+- `external/`: other teams' M6 code, git-ignored, own licences. Reimplement, do not copy.
+
+## Environment
+
+- Use the repo venv: `.venv\Scripts\python` (Python 3.14, installed with uv, has `-e .` and all of
+  `requirements.txt` plus ipykernel). Do not use the system Python.
+- `pytest` is configured in `pyproject.toml` (pythonpath `src`, testpaths `tests`). The suite takes
+  about a minute. Run it before committing model or scoring changes.
+- The Makefile assumes `python` on PATH and `PYTHONPATH=src`; from the venv, call the modules
+  directly: `.venv\Scripts\python -m thesis.data.build_panel`, `-m thesis.features`.
+- Raw data are present locally and git-ignored (VOLARE csv, Yahoo prices, M6 files). Processed
+  parquet files are rebuilt by the pipeline. Downloads on this machine are slow; use long timeouts.
+- Git: `origin` is github.com/sguhring/Thesis-Simon-G-hring. Commit only when asked. Files are LF;
+  the CRLF warning on Windows is harmless.
+
+## Conventions
+
+- Plain words first, one formula second, and say why it matters for the thesis. The author is still
+  building the volatility-econometrics background; visual breakdowns are welcome.
+- Every model is a function `forecast(train_panel, origin, horizon, cfg)` returning the table in
+  `models/base.py`. Hyperparameters are tuned only on data before the origin (decision 4).
+- Accuracy losses on the variance scale (QLIKE, MSE), never on the log scale. Calibration scores on
+  the h-day return (coverage, interval score, MSIS, PIT). Decision 9 has the exact definitions.
+- A model that forecasts on the log scale records its retransformation in its `model` name.
+- Nothing from claude.ai chats is visible here. Anything decided verbally is lost unless it is written
+  into `DECISIONS.md` or the memory notes.
+
+## Status (11 Nov 2026)
+
+Done: clean panel and features, decisions 1 to 5 and 7 to 9, data chapter material, Milestone 1 deck,
+AdaVol rebuilt and validated (`models/adavol.py`), Vilar and SebastianR checked as scripts, scoring
+functions with tests.
+
+Milestone 2 (due 9 Nov, overdue): forecast table and scores for all models in both settings, results
+chapter draft. Missing, in the order to build them:
+
+1. Benchmark models from `config.yaml`: naive, GARCH, GJR, HAR, then LightGBM.
+2. Rolling-origin driver: monthly origins from Jan 2018, expanding window, refit each model, write
+   `data/processed/forecasts.parquet`.
+3. Scores run over the forecast table and the results tables and figures for the manuscript.
+4. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
+   the common "distribution to ranks" step for every model.
+5. Results chapter draft in `manuscript/index.qmd`.
+
+Open with Nicolò (asked 15 Oct 2026, answers not yet logged): which AdaVol to report; whether the
+correlated AdaVol variant may be shown; a fourth M6 method or that time on VOLARE; medrv5 as main
+specification. Log the answers in `DECISIONS.md` entry 6 as soon as they are known.
+
+Milestone 3 (7 Dec): regime and calibration analysis, discussion, final manuscript.

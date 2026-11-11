@@ -78,3 +78,38 @@ def test_pure_arch_runs_without_beta():
 def test_leading_zero_return_is_rejected():
     with pytest.raises(ValueError):
         adavol([0.0, 0.01, -0.02])
+
+
+def test_bad_inputs_are_rejected():
+    with pytest.raises(ValueError):
+        adavol([])                                  # no observations
+    with pytest.raises(ValueError):
+        adavol(np.zeros((5, 2)))                    # not one-dimensional
+    with pytest.raises(ValueError):
+        adavol([0.01, 0.02], (0.5, 0.9))            # sum(theta0) > 1
+    with pytest.raises(ValueError):
+        adavol([0.01, 0.02], (-0.1, 0.9))           # negative coordinate
+
+
+def test_interior_zero_returns_stay_finite():
+    x = simulate_garch(500, 2e-6, 0.10, 0.85, seed=5)
+    x[100] = 0.0
+    fit = adavol(x)
+    assert np.isfinite(fit.sigma2).all() and np.isfinite(fit.theta).all()
+
+
+def test_step_two_gradient_carries_no_derivative_of_the_constant_start():
+    # sigma2_1 = x1^2 is a constant, so the gradient recursion starts from a zero lag:
+    # ds_2 = (x1^2 - gamma2_2) in both coordinates, with no beta * (fabricated ds_1) term
+    a, b, eta, eps = 0.05, 0.90, 0.1, 1e-8
+    x1 = 0.01
+    x2 = x1 * np.sqrt(0.9625 * 1.001)               # forecast close to x2^2: a small gradient
+    fit = adavol([x1, x2], (a, b), eta=eta, eps=eps)
+    g2_1 = x1 ** 2 / 4                              # sample variance after x1 (mean x1 / 2)
+    sig2 = g2_1 + (a + b) * (x1 ** 2 - g2_1)        # forecast for x2
+    mu2 = (2 * (x1 / 2) + x2) / 3
+    g2_2 = (g2_1 + (x2 - mu2) ** 2) / 2
+    ds = np.full(2, x1 ** 2 - g2_2)
+    g = ds * (sig2 - x2 ** 2) / (2 * sig2 ** 2)
+    expected = project_garch(np.array([a, b]) - eta * g / np.sqrt(eps + g * g))
+    assert np.allclose(fit.theta[1], expected, atol=1e-14)

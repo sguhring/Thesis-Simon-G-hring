@@ -26,8 +26,16 @@ x0             The notebook spends its first observation on initialisation: the 
                first variance to x_1^2.
 forecast_with  The notebook forecasts sigma2_{t+1} with theta_{t-1}. Table 1 and VW Algorithm 1 use the
                estimate that has just been updated, theta_t.
-project        The notebook's projection divides by rho where Duchi et al. (2008) divide by rho + 1, so
-               a step that leaves the set lands inside it, not on the boundary sum(theta) = 1.
+project        The notebook's projection (a widely circulated gist) divides the excess by one less than
+               the number of positive coordinates, an off-by-one against Duchi et al. (2008), so a step
+               that leaves the set lands inside it, not on the boundary sum(theta) = 1 where
+               `project_garch` puts it.
+
+Two quirks of Table 1 are kept deliberately, and the authors' notebook has them too: the mean update
+divides by t + 1, so the zero it starts from is counted like an observation forever; and the gradient
+uses the gamma2 that has just been updated with x_t, although the forecast it differentiates was built
+from the previous gamma2 (Table 1 updates gamma2 before the gradient and writes gamma2 in theta_t
+without a time index).
 """
 from __future__ import annotations
 
@@ -66,9 +74,13 @@ def adavol(x, theta0=(0.05, 0.90), p: int = 1, q: int = 1, eta: float = 0.1, eps
     x0, forecast_with and project switch on the authors' notebook behaviour (see the module docstring).
     """
     x = np.asarray(x, dtype=float)
+    if x.ndim != 1 or len(x) == 0:
+        raise ValueError("x must be a one-dimensional array with at least one return")
     theta = np.array(theta0, dtype=float)
     if p < 1 or q < 0 or theta.shape != (p + q,):
         raise ValueError("need p >= 1, q >= 0 and one starting value per parameter")
+    if (theta < 0).any() or theta.sum() > 1:
+        raise ValueError("theta0 must lie in the feasible set {theta >= 0, sum(theta) <= 1}")
     if forecast_with not in ("updated", "previous"):
         raise ValueError("forecast_with must be 'updated' or 'previous'")
     n = len(x)
@@ -93,8 +105,14 @@ def adavol(x, theta0=(0.05, 0.90), p: int = 1, q: int = 1, eta: float = 0.1, eps
         mu = (t * mu + x[k]) / (t + 1)
         gamma2 = ((t - 1) * gamma2 + (x[k] - mu) ** 2) / t
 
-        # gradient of l_t at the previous estimate (WW eq. 2.7 and the recursion below eq. 2.8)
-        ds = np.concatenate((x2_lags, s2_lags)) - gamma2 + theta[p:] @ ds_lags
+        # gradient of l_t at the previous estimate (WW eq. 2.7 and the recursion below eq. 2.8).
+        # At t = 1 the variance is the constant x_1^2 (Table 1), so its derivative is zero; the
+        # recursion formula would fabricate one from the empty lags. The notebook applies the
+        # formula from the start, which x0 keeps.
+        if k == 0 and x0 is None:
+            ds = np.zeros(p + q)
+        else:
+            ds = np.concatenate((x2_lags, s2_lags)) - gamma2 + theta[p:] @ ds_lags
         g = ds * (sig - x[k] ** 2) / (2.0 * sig ** 2)
         G += g * g
         new = project(theta - eta * g / np.sqrt(G))
@@ -106,6 +124,10 @@ def adavol(x, theta0=(0.05, 0.90), p: int = 1, q: int = 1, eta: float = 0.1, eps
         ds_lags = np.vstack((ds, ds_lags))[:q]
         th = new if forecast_with == "updated" else theta
         sig = gamma2 + th[:p] @ (x2_lags - gamma2) + th[p:] @ (s2_lags - gamma2)
+        if not sig > 0:
+            raise ValueError(f"the variance forecast after observation {k} is not positive "
+                             "(a zero return with theta on the boundary sum(theta) = 1): "
+                             "drop zero returns first")
 
         theta = new
         out.theta[k] = theta
