@@ -59,6 +59,7 @@ make panel      # data/processed/panel.parquet   (40 stocks x 2,932 days)
 make features   # data/processed/features.parquet
 make forecasts  # data/processed/forecasts.parquet + realised.parquet: all models, rolling origins (minutes)
 make scores     # data/processed/scores*.parquet + manuscript/tables/scores_volare.md
+make figures    # manuscript/figures/*.{pdf,png} + manuscript/tables/dm_volare.md
 make test       # unit tests: scoring, models, driver (about a minute)
 ```
 

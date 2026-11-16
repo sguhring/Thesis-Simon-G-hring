@@ -69,15 +69,23 @@ nothing and the whole ML gain is the functional form; at h = 20 pooling helps a 
 0.935 relative to GARCH, the best QLIKE in the table) while the nonlinearity costs 0.106, so the
 LightGBM failure at 20 days is the trees overfitting, not the pooling.
 
+Results figures and the model comparison are in (`evaluate/figures.py`, `evaluate/style.py`, entry
+13): the ladder, QLIKE by regime and VIX tercile, coverage by level, Mincer-Zarnowitz slopes and the
+calibration plot, written to `manuscript/figures` as PDF and PNG by `make figures`, plus
+Diebold-Mariano with Newey-West on the cross-sectional mean loss per origin
+(`manuscript/tables/dm_volare.md`). Every number in the manuscript is generated, none typed by hand.
+
 Milestone 2 (due 9 Nov, overdue): forecast table and scores for all models in both settings, results
 chapter draft. Still missing, in order:
 
-1. Results figures for the manuscript (scores by regime, coverage by level, MZ plots; the pooling /
-   nonlinearity ladder of entry 12 as a bar panel); Diebold-Mariano with HAC on the overlapping
-   20-day forecasts. MSIS and PIT are in `evaluate/scores.py` but not yet in `run_scores.py`.
-2. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
-   the common "distribution to ranks" step for every model.
-3. Results chapter draft in `manuscript/index.qmd`.
+1. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
+   the common "distribution to ranks" step for every model. This is the largest piece left and the
+   main schedule risk: the three validation scripts and the RPS/IR functions exist, but nothing joins
+   them and no model writes `p_q1..p_q5` yet.
+2. Results chapter draft in `manuscript/index.qmd`.
+3. Smaller: MSIS and PIT in `run_scores.py` (both functions already sit in `evaluate/scores.py`);
+   decision 5's regime windows leave 325 of the 2,177 test days unassigned, 294 of them the most
+   recent fourteen months (entry 13) -- to settle with Nicolò before the results chapter.
 
 Open with Nicolò (asked 15 Oct 2026, answers not yet logged): which AdaVol to report; whether the
 correlated AdaVol variant may be shown; a fourth M6 method or that time on VOLARE; medrv5 as main

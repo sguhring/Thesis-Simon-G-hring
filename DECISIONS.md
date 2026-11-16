@@ -351,10 +351,15 @@ twelve model rows (2,089,920 forecasts). QLIKE relative to GARCH(1,1), from
   for four parameters there is no data-scarcity gain to collect, which is the condition under which
   global models pay (Montero-Manso & Hyndman 2020). The entire LightGBM advantage at h = 1 is the
   functional form, not the 40-fold training set.
-- At h = 20 the two effects point in opposite directions: pooling helps a little and the nonlinearity
-  costs ten times as much as pooling saves. `har_pooled` is the best model in the table at h = 20 on
+- At h = 20 the two effects point in opposite directions: pooling helps a little (not significantly,
+  see below) and the nonlinearity costs ten times as much as pooling saves. `har_pooled` is the best model in the table at h = 20 on
   QLIKE (0.922) and on MSE (154.3 against 158.0 for `har`, 175.8 for `lgbm`), with five parameters.
   So the h = 20 failure of LightGBM is overfitting of the 20-day target by the trees, not the pooling.
+- The pooling step is not statistically significant at either horizon: Diebold-Mariano of
+  `har_pooled` against `har` on the cross-sectional mean QLIKE gives +0.21 at h = 1 and +0.49 at
+  h = 20 (decision 13), so the honest statement is that pooling buys nothing measurable here, at
+  h = 20 included. The nonlinearity step is significant both times and in opposite directions:
+  `lgbm` against `har_pooled` is -6.02 at h = 1 and +2.34 at h = 20.
 - Pooling also improves the Mincer-Zarnowitz slope, 0.970 -> 0.984 at h = 1 and 0.933 -> 0.960 at
   h = 20, and `har_pooled` has the coverage closest to nominal of any row at h = 20 (0.904 / 0.944 /
   0.979 against 0.90 / 0.95 / 0.99). Sharing one rule across the panel appears to damp the
@@ -362,3 +367,48 @@ twelve model rows (2,089,920 forecasts). QLIKE relative to GARCH(1,1), from
 - The fitted rule is stable across the 104 windows: the three HAR lag coefficients sum to 0.897 at
   h = 1 and 0.70 at h = 20 (the mean reversion the single shared intercept cannot absorb is taken up
   by the scale feature), with in-sample residual variance 0.43 and 0.35.
+
+## 13. Results figures and the Diebold-Mariano test (decided, 16 Nov 2026)
+
+`src/thesis/evaluate/figures.py` (figures and the DM table), `src/thesis/evaluate/style.py` (one
+palette and one set of matplotlib settings), `evaluate/scores.py` (`diebold_mariano`,
+`newey_west_var`). Run with `make figures`. Everything is rebuilt from `forecasts.parquet` and
+`scores.parquet`, so no number in the manuscript is typed by hand.
+
+**The Diebold-Mariano construction.** The 20-day forecasts of consecutive origins overlap and the 40
+stocks move together, so a test on the pooled 2.1 million rows would be wrong twice over. The loss
+difference is therefore averaged across the 40 stocks at each origin first, which leaves one series
+of about 2,170 daily differences and takes the cross-sectional dependence out of the problem
+altogether; that series is then tested with Newey-West standard errors and 20 lags, the same lag
+length decision 10 uses for Mincer-Zarnowitz. The loss is QLIKE. Benchmarks: GARCH(1,1), the Hansen
+and Lunde yardstick, and the pooled HAR, the best model in the table. Averaging first is the
+conservative reading of the cross-section: it tests whether a model beats another *on the average
+stock-day*, not whether it does so for some stock. A per-stock version with a panel correction is a
+Milestone 3 robustness row if a reader asks for it.
+
+**What the figures show** (`manuscript/figures/`, PDF for the Quarto PDF and PNG for the docx):
+
+- `fig_ladder` the pooling and nonlinearity steps of entry 12, as deviations from GARCH(1,1).
+- `fig_qlike_regime` QLIKE relative to GARCH by calendar regime and VIX tercile, a model-by-regime
+  grid, so a heatmap, with the diverging pair centred on the GARCH rule.
+- `fig_coverage` empirical minus nominal coverage at the 90, 95 and 99 percent levels.
+- `fig_mz_beta` the Mincer-Zarnowitz slope with its 95 percent HAC interval, against the line at one.
+- `fig_mz_calibration` mean log realised against mean log forecast by forecast decile, for GARCH,
+  pooled HAR and LightGBM, with the 45-degree line.
+
+**Choices inside the figures that a reader could question.** (i) The regime figure shows the eight
+primary model rows, not the four `_median` rows, which have their own column in the scores table and
+their own panel in `fig_coverage`; (ii) the calibration figure shows three models because a
+scatter-type chart with more than three series cannot keep its colours distinguishable under
+colour-blind simulation; (iii) the heatmap's colour saturates at the 90th percentile of the
+deviations, because one cell (AdaVol in covid, 2.07) would otherwise flatten every other cell, and
+the printed numbers stay exact; (iv) every line in `fig_mz_calibration` sits below the 45-degree line
+by construction, since the mean of the log is below the log of the mean for a right-skewed variable,
+so the figure is read for its slope and for how the gap changes across deciles, not for its level.
+
+**The regime windows do not tile the test period.** 325 of the 2,177 test days fall outside every
+window of decision 5: 2 Jan to 14 Feb 2020 (31 days) and 1 Jul 2025 to 31 Aug 2026 (294 days, the
+most recent fourteen months). They are shown as a column named `other` rather than dropped. Decision
+5 is marked "revisit after exploration" and this is the revision it needs: either extend
+`post_2023`/add a window for 2025-26, or state in the manuscript that the regime table covers 85
+percent of the test days. To be settled with Nicolò before the results chapter is written.

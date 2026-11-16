@@ -2,6 +2,7 @@
 per-observation losses (so Diebold-Mariano and regime splits can be computed downstream).
 
 Accuracy:     qlike, mse                      (variance forecast vs realised variance)
+Comparison:   diebold_mariano, newey_west_var (equal predictive accuracy, HAC for overlapping rows)
 Calibration:  coverage, interval_score, msis  (quantile forecasts vs realised return)
               pinball                         (single quantile)
               mincer_zarnowitz                (slope < 1 means under-estimation)
@@ -12,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from scipy import stats
 
 
 # ---------- accuracy of the variance forecast ----------
@@ -36,6 +38,48 @@ def mincer_zarnowitz(var_fc: np.ndarray, rv: np.ndarray, log: bool = True) -> di
     return {"alpha": float(a), "beta": float(b), "se_alpha": float(res.bse[0]),
             "se_beta": float(res.bse[1]), "r2": float(res.rsquared),
             "wald_p": float(wald.pvalue)}
+
+
+# ---------- comparing two models ----------
+
+def newey_west_var(d: np.ndarray, maxlags: int) -> float:
+    """Long-run variance of the mean of `d` (Newey-West, Bartlett kernel).
+
+    The 20-day forecasts of consecutive origins overlap, so their loss differences are
+    autocorrelated and the plain sample variance understates the uncertainty (decision 10).
+    maxlags = 0 gives the plain variance.
+    """
+    d = np.asarray(d, dtype=float)
+    d = d[np.isfinite(d)]
+    n = len(d)
+    if n < 2:
+        raise ValueError("need at least two observations")
+    if maxlags < 0 or maxlags >= n:
+        raise ValueError(f"maxlags must be in [0, {n - 1}]")
+    e = d - d.mean()
+    total = float(e @ e) / n
+    for L in range(1, maxlags + 1):
+        total += 2.0 * (1.0 - L / (maxlags + 1.0)) * float(e[L:] @ e[:-L]) / n
+    return max(total, 0.0)
+
+
+def diebold_mariano(loss_a: np.ndarray, loss_b: np.ndarray, maxlags: int) -> dict:
+    """Diebold-Mariano test of equal predictive accuracy between models a and b.
+
+    The statistic is the mean of d = loss_a - loss_b over its HAC standard error, standard normal
+    under the null of equal accuracy. A negative statistic favours model a (its loss is smaller).
+    Feed it one series per forecast origin: the thesis averages the per-stock loss difference across
+    the 40 stocks at each origin first, so the cross-sectional dependence does not enter the
+    standard error (decision 13).
+    """
+    d = np.asarray(loss_a, dtype=float) - np.asarray(loss_b, dtype=float)
+    d = d[np.isfinite(d)]
+    n = len(d)
+    lrv = newey_west_var(d, maxlags)
+    se = float(np.sqrt(lrv / n))
+    stat = float(d.mean() / se) if se > 0 else np.nan
+    p = float(2.0 * stats.norm.sf(abs(stat))) if np.isfinite(stat) else np.nan
+    return {"mean_diff": float(d.mean()), "stat": stat, "p": p, "n": n, "maxlags": int(maxlags)}
 
 
 # ---------- calibration of the return distribution ----------

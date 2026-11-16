@@ -2,7 +2,7 @@
 PY = python
 export PYTHONPATH := src
 
-all: panel features forecasts scores
+all: panel features forecasts scores figures
 
 m6-data:
 	$(PY) -m thesis.data.download_m6
@@ -23,7 +23,11 @@ features: data/processed/features.parquet
 data/processed/features.parquet: data/processed/panel.parquet src/thesis/features.py
 	$(PY) -m thesis.features
 
+figures: manuscript/figures/fig_ladder.pdf
+manuscript/figures/fig_ladder.pdf: data/processed/scores.parquet src/thesis/evaluate/figures.py src/thesis/evaluate/style.py
+	$(PY) -m thesis.evaluate.figures
+
 test:
 	$(PY) -m pytest -q
 
-.PHONY: all m6-data panel features forecasts scores test
+.PHONY: all m6-data panel features forecasts scores figures test

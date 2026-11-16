@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+import pytest
 
-from thesis.evaluate.scores import (coverage, information_ratio, interval_score, m6_quintile_targets,
-                                    m6_quintiles, qlike, rps)
+from thesis.evaluate.scores import (coverage, diebold_mariano, information_ratio, interval_score,
+                                    m6_quintile_targets, m6_quintiles, newey_west_var, qlike, rps)
 
 
 def test_rps_uniform_is_016_on_average():
@@ -54,3 +55,45 @@ def test_interval_score_penalises_misses():
     lo, hi, y = np.array([-1.0]), np.array([1.0]), np.array([2.0])
     assert interval_score(lo, hi, y, 0.95)[0] > 2.0
     assert coverage(lo, hi, y)[0] == 0.0
+
+
+def test_newey_west_with_zero_lags_is_the_plain_variance():
+    d = np.random.default_rng(1).normal(size=200)
+    assert newey_west_var(d, 0) == pytest.approx(d.var())
+
+
+def test_newey_west_inflates_the_variance_under_positive_autocorrelation():
+    rng = np.random.default_rng(2)
+    e = rng.normal(size=4000)
+    d = e[1:] + e[:-1]                      # MA(1), positive first-order autocorrelation
+    assert newey_west_var(d, 10) > 1.5 * newey_west_var(d, 0)
+
+
+def test_diebold_mariano_sign_and_scale():
+    rng = np.random.default_rng(3)
+    better = rng.normal(1.0, 1.0, size=500)
+    worse = rng.normal(1.3, 1.0, size=500)
+    out = diebold_mariano(better, worse, maxlags=0)
+    assert out["mean_diff"] < 0 and out["stat"] < -2 and out["p"] < 0.05 and out["n"] == 500
+    # with zero lags the statistic is the one-sample t of the differences
+    d = better - worse
+    assert out["stat"] == pytest.approx(d.mean() / np.sqrt(d.var() / len(d)))
+    # the reverse comparison flips the sign only
+    rev = diebold_mariano(worse, better, maxlags=0)
+    assert rev["stat"] == pytest.approx(-out["stat"]) and rev["p"] == pytest.approx(out["p"])
+
+
+def test_diebold_mariano_of_a_model_against_itself_is_undefined_not_significant():
+    loss = np.random.default_rng(4).normal(size=100)
+    out = diebold_mariano(loss, loss, maxlags=5)
+    assert out["mean_diff"] == 0.0 and np.isnan(out["stat"])
+
+
+def test_diebold_mariano_hac_widens_the_interval_on_overlapping_losses():
+    rng = np.random.default_rng(5)
+    e = rng.normal(size=3000)
+    a = e[1:] + e[:-1] + 0.05               # overlapping forecasts: autocorrelated differences
+    b = np.zeros_like(a)
+    naive_stat = abs(diebold_mariano(a, b, maxlags=0)["stat"])
+    hac_stat = abs(diebold_mariano(a, b, maxlags=20)["stat"])
+    assert hac_stat < naive_stat
