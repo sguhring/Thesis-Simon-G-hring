@@ -19,10 +19,12 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.colors import Normalize
+from matplotlib.transforms import blended_transform_factory
 
 from thesis.evaluate.scores import diebold_mariano, qlike
-from thesis.evaluate.style import (AXIS, BLUE, FIG_W, INK, INK_2, MUTED, RED_POLE, SERIES, SURFACE,
-                                   diverging_cmap, oklab_lightness, save, use_style, value_grid)
+from thesis.evaluate.style import (AXIS, BLUE, FIG_W, GRID, INK, INK_2, MUTED, RED_POLE, SERIES,
+                                   SURFACE, diverging_cmap, oklab_lightness, save, use_style,
+                                   value_grid)
 from thesis.paths import FEATURES, FIGURES, FORECASTS, REALISED, SCORES, TABLES, load_config
 
 MODEL_ORDER = ["naive", "garch", "gjr", "adavol", "har", "har_median", "har_pooled",
@@ -30,6 +32,7 @@ MODEL_ORDER = ["naive", "garch", "gjr", "adavol", "har", "har_median", "har_pool
 MAIN = ["naive", "garch", "gjr", "adavol", "har", "har_pooled", "lgbm", "lgbm_ratio"]
 LADDER = ["har", "har_pooled", "lgbm", "lgbm_ratio"]
 CALIBRATION = ["garch", "har_pooled", "lgbm"]          # three series: the all-pairs colour cap
+PAIRS = [("lgbm", "garch"), ("har_pooled", "garch"), ("lgbm", "har_pooled")]
 LABEL = {"naive": "naive", "garch": "GARCH(1,1)", "gjr": "GJR(1,1,1)", "adavol": "AdaVol",
          "har": "HAR", "har_median": "HAR, median", "har_pooled": "HAR pooled",
          "har_pooled_median": "HAR pooled, median", "lgbm": "LightGBM",
@@ -279,13 +282,91 @@ def fig_mz_calibration(d: pd.DataFrame, cfg: dict, n_bins: int = 10) -> list:
     return save(fig, "fig_mz_calibration", FIGURES)
 
 
+def fig_loss_over_time(d: pd.DataFrame, cfg: dict) -> list:
+    """The cumulative QLIKE saved against a benchmark, origin by origin.
+
+    The Diebold-Mariano table gives one number for the whole sample; this is the same loss
+    difference it averages, left unaveraged, so the reader can see *when* an edge was earned. A
+    steady climb is a persistent advantage; a cliff is one episode doing all the work. Rising means
+    the first model of the pair is ahead.
+
+    The axis is the forecast *origin*, not the day the loss is realised. At h = 20 the loss booked at
+    an origin covers the next twenty trading days, so the covid damage begins up to twenty trading
+    days before the shaded band, which is drawn on origin dates. Read the cliff as "the forecasts
+    made from here on were wrong", not as the model failing in advance.
+    """
+    daily = daily_mean_loss(d)
+    covid = cfg["regimes"]["covid"]
+    fig, axes = plt.subplots(1, 2, figsize=(FIG_W, 3.1), layout="constrained")
+    for ax, h in zip(axes, cfg["horizons"]):
+        wide = daily.xs(h, level="horizon")
+        ax.axvspan(pd.Timestamp(covid["start"]), pd.Timestamp(covid["end"]), color=GRID, zorder=0)
+        for j, (m, b) in enumerate(PAIRS):
+            cum = (wide[b] - wide[m]).dropna().cumsum()
+            ax.plot(cum.index, cum.to_numpy(), color=SERIES[j], lw=1.4, zorder=3,
+                    label=f"{LABEL[m]} vs {LABEL[b]}")
+        ax.axhline(0.0, color=AXIS, lw=0.9, zorder=2)
+        ax.set_xlim(wide.index.min(), wide.index.max())
+        tr = blended_transform_factory(ax.transData, ax.transAxes)
+        ax.text(pd.Timestamp(covid["end"]), 0.03, " covid", transform=tr, fontsize=6.5,
+                color=MUTED, va="bottom", ha="left")
+        ax.set_title(f"horizon {h} day" + ("s" if h > 1 else ""), loc="left")
+        ax.set_ylabel("cumulative QLIKE saved" if h == cfg["horizons"][0] else "")
+        value_grid(ax, axis="y")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside lower center", ncols=3, handletextpad=0.2,
+               columnspacing=1.4)
+    fig.suptitle("Where the advantage was earned, and where it was given back",
+                 x=0.0, ha="left", fontsize=9, color=INK)
+    return save(fig, "fig_loss_over_time", FIGURES)
+
+
+def fig_volatility_path(d: pd.DataFrame, cfg: dict, zoom=("2020-01-02", "2020-07-31")) -> list:
+    """Annualised volatility, the cross-sectional mean of the 40 stocks: the realised path and what
+    three models forecast for it one day ahead. The top panel is the whole test period, the bottom
+    the covid episode, where the models are furthest apart and the Mincer-Zarnowitz slope below one
+    becomes visible as a line that does not rise far enough, soon enough."""
+    h = cfg["horizons"][0]
+    g = d[d["horizon"] == h]
+    ann = lambda v: np.sqrt(252.0 * np.asarray(v, dtype=float)) * 100.0
+    fcst = (g[g["model"].isin(CALIBRATION)].assign(v=lambda x: ann(x["var"]))
+            .groupby(["model", "origin"])["v"].mean().unstack("model"))
+    truth = (g[g["model"] == CALIBRATION[0]].assign(v=lambda x: ann(x["rv_h"]))
+             .groupby("origin")["v"].mean())
+    spans = [(truth.index.min(), truth.index.max(), "the whole test period"),
+             (pd.Timestamp(zoom[0]), pd.Timestamp(zoom[1]), "the covid episode")]
+    fig, axes = plt.subplots(2, 1, figsize=(FIG_W, 4.4), layout="constrained")
+    for ax, (a, b, title) in zip(axes, spans):
+        t = truth.loc[a:b]
+        ax.plot(t.index, t.to_numpy(), color=MUTED, lw=0.7, zorder=2, label="realised")
+        for j, m in enumerate(CALIBRATION):
+            s = fcst[m].loc[a:b]
+            ax.plot(s.index, s.to_numpy(), color=SERIES[j], lw=1.3, zorder=3, label=LABEL[m])
+        ax.set_title(title, loc="left")
+        ax.set_ylabel("annualised volatility (%)")
+        ax.set_xlim(t.index.min(), t.index.max())
+        value_grid(ax, axis="y")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside lower center", ncols=4, handletextpad=0.2,
+               columnspacing=1.4)
+    fig.suptitle("One-day-ahead volatility, averaged across the 40 stocks", x=0.0, ha="left",
+                 fontsize=9, color=INK)
+    return save(fig, "fig_volatility_path", FIGURES)
+
+
 # ---------- Diebold-Mariano ----------
+
+def daily_mean_loss(d: pd.DataFrame) -> pd.DataFrame:
+    """Cross-sectional mean QLIKE per (horizon, model, origin): the series the DM test is run on and
+    the series `fig_loss_over_time` accumulates (decision 13)."""
+    return d.groupby(["horizon", "model", "origin"], observed=True)["qlike"].mean().unstack("model")
+
 
 def dm_table(d: pd.DataFrame, cfg: dict, benchmarks=("garch", "har_pooled")) -> str:
     """Decision 13: average the per-stock QLIKE difference across the 40 stocks at each origin, then
     test the resulting series with Newey-West standard errors (20 lags, the forecast overlap).
     Averaging first keeps the cross-sectional dependence out of the standard error."""
-    daily = d.groupby(["horizon", "model", "origin"], observed=True)["qlike"].mean().unstack("model")
+    daily = daily_mean_loss(d)
     lines = ["Diebold-Mariano on QLIKE: the cross-sectional mean loss difference per origin, with",
              f"Newey-West standard errors ({HAC_LAGS} lags). A negative statistic means the row beats",
              "the benchmark; |t| above 1.96 is the 5 percent level. Decision 13."]
@@ -327,6 +408,8 @@ def main() -> None:
     written += fig_coverage(table, cfg)
     written += fig_mz_beta(table, cfg)
     written += fig_mz_calibration(d, cfg)
+    written += fig_loss_over_time(d, cfg)
+    written += fig_volatility_path(d, cfg)
     print(dm_table(d, cfg))
     for p in written:
         print("saved", p)

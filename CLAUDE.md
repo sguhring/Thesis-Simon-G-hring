@@ -70,11 +70,17 @@ holds twelve model rows (2.09 million forecasts) and `manuscript/tables/scores_v
 results table. The pooled HAR row splits the LightGBM-vs-HAR gap (entry 12): at h = 1 pooling is worth
 nothing and the whole ML gain is the functional form; at h = 20 pooling helps a little (0.922 against
 0.935 relative to GARCH, the best QLIKE in the table) while the nonlinearity costs 0.106, so the
-LightGBM failure at 20 days is the trees overfitting, not the pooling.
+LightGBM failure at 20 days is the trees overfitting, not the pooling. The cumulative-loss figure
+sharpens that: LightGBM's whole 20-day deficit against GARCH is the six weeks of covid (-5.9 before
+it, -39.8 by 31 Mar 2020, -18.2 by 2026), while against the pooled HAR it is behind before covid and
+keeps losing ground after. `lgbm_ratio`, which entry 11 introduced to survive exactly such a crisis,
+does twice as badly through it as the level variant -- that reasoning needs checking before it goes
+in the manuscript.
 
 Results figures and the model comparison are in (`evaluate/figures.py`, `evaluate/style.py`, entry
-13): the ladder, QLIKE by regime and VIX tercile, coverage by level, Mincer-Zarnowitz slopes and the
-calibration plot, written to `manuscript/figures` as PDF and PNG by `make figures`, plus
+13): the ladder, QLIKE by regime and VIX tercile, coverage by level, Mincer-Zarnowitz slopes, the
+calibration plot, the cumulative loss against a benchmark over time and the volatility path with
+forecasts, written to `manuscript/figures` as PDF and PNG by `make figures`, plus
 Diebold-Mariano with Newey-West on the cross-sectional mean loss per origin
 (`manuscript/tables/dm_volare.md`). Every number in the manuscript is generated, none typed by hand.
 

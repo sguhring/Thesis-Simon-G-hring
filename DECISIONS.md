@@ -412,3 +412,43 @@ most recent fourteen months). They are shown as a column named `other` rather th
 5 is marked "revisit after exploration" and this is the revision it needs: either extend
 `post_2023`/add a window for 2025-26, or state in the manuscript that the regime table covers 85
 percent of the test days. To be settled with Nicolò before the results chapter is written.
+
+**Two time-series figures added (16 Nov 2026).** The five figures above all collapse time: four
+compare models on a model axis and the regime heatmap buckets 2,177 days into seven windows. Two
+line charts restore the time dimension, and one of them changes how the h = 20 result reads.
+
+- `fig_loss_over_time` the cumulative QLIKE saved against a benchmark, origin by origin: the same
+  loss difference the Diebold-Mariano test averages, left unaveraged, so a steady climb (a persistent
+  edge) can be told from a cliff (one episode). Three pairs, the ones the DM table and entry 12 turn
+  on. The axis is the forecast origin, so at h = 20 the damage from an episode begins up to twenty
+  trading days before the shaded covid band, which is drawn on origin dates.
+- `fig_volatility_path` the cross-sectional mean annualised volatility of the 40 stocks, realised
+  against three models' one-day forecasts, over the whole test period and zoomed on covid. The
+  "look at the data" figure, and the visual form of a Mincer-Zarnowitz slope below one: at the peak
+  realised volatility reaches about 220 percent a year while every model tops out between 100 and
+  118, LightGBM lowest.
+
+**What the cumulative figure shows**, cumulative QLIKE saved against GARCH(1,1) at h = 20:
+
+| pair | 14 Feb 2020 | 31 Mar 2020 | 31 Aug 2026 |
+|---|---|---|---|
+| LightGBM vs GARCH | -5.9 | -39.8 | -18.2 |
+| pooled HAR vs GARCH | +6.1 | +1.9 | +50.6 |
+| LightGBM vs pooled HAR | -12.0 | -41.7 | -68.8 |
+
+- LightGBM's whole 20-day deficit against GARCH is one episode: roughly level with GARCH for the
+  first two years, then about 34 points lost in six weeks, then a slow recovery of about 25 points
+  over the following six years. The headline 1.028 is a six-week event, not a standing weakness, and
+  the results chapter should say so rather than leaving the ratio to carry the claim.
+- Against the pooled HAR the deficit is not only covid: LightGBM is already behind before it (-12.0)
+  and keeps losing ground afterwards, to -68.8. The pooled HAR dips by only four points through covid
+  and then climbs steadily. That is the row the ML model actually has to beat.
+- At h = 1 the picture is the opposite and reassuring: LightGBM is +43.7 against GARCH before covid,
+  gives back about one point during it and ends at +197.5. The one-day advantage is persistent.
+- **The ratio target made the crisis worse, not better.** `lgbm_ratio` was introduced in entry 11 to
+  remove the tree-saturation ceiling precisely so that a crisis could be forecast (course item 3).
+  Through covid it loses about 61 cumulative points against GARCH where the level variant loses about
+  28, and it ends at -63.1 against the level variant's -18.2. The mechanism either does not work as
+  argued or is dominated by the extra variance the ratio introduces; this needs a direct look at the
+  2020 forecasts before entry 11's reasoning can stand in the manuscript. It is also the likely
+  source of the h = 20 MSE blow-up (1391.9) already flagged in the scores table.
