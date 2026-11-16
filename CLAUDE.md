@@ -18,6 +18,9 @@ be tested directly).
 - `src/thesis/`: the package. `models/base.py` is the forecast-table contract every model must
   return; `evaluate/scores.py` reads only that table. `features.py` builds the targets of decision 9.
 - `notebooks/`: exploration and validation scripts only. Nothing the manuscript depends on lives here.
+  `00_project_overview.ipynb` is the orientation notebook: it opens each artefact of the chain in turn
+  and runs one model live, but rebuilds nothing. Keep it read-only, or it becomes a second source of
+  truth that drifts from the package.
 - `manuscript/index.qmd`: Quarto source, still a chapter skeleton. Figures and tables are generated
   by the pipeline into `manuscript/figures` and `manuscript/tables`.
 - `notes/`: seminar prep, the Milestone 1 figures and scripts, the primer.
