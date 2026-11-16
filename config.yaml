@@ -37,6 +37,7 @@ evaluation:
   origin_frequency: "monthly"  # re-estimate at each origin
   quantiles: [0.005, 0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975, 0.995]
   interval_levels: [0.90, 0.95, 0.99]
+  n_sims: 2000                 # simulated paths for multi-step return quantiles (GARCH, GJR)
   m6_naive_rps: 0.16
 
 regimes:
@@ -68,10 +69,28 @@ m6:
   window_days: 20   # each evaluation period is roughly 4 weeks / 20 trading days
 
 models:
-  naive:   {window: 22}
+  # DECISIONS.md #10. `dist` is the shape of the h-day return distribution a variance-only model uses
+  # for its quantiles (normal | t); GARCH-type models use their fitted innovation distribution.
+  naive:   {window: 22, dist: normal}
   garch:   {p: 1, q: 1, dist: t}
   gjr:     {p: 1, o: 1, q: 1, dist: t}
-  har:     {lags: [1, 5, 22]}
-  lightgbm: {n_estimators: 500, learning_rate: 0.03, num_leaves: 15, pooled: true}
+  har:     {lags: [1, 5, 22], dist: normal}
+  adavol:  {theta0: [0.05, 0.90], eta: 0.1, dist: normal}   # WW Table 1 as published (open: entry 6)
+  lightgbm:          # DECISIONS.md #11: pooled across stocks, one model per horizon and target variant
+    pooled: true
+    variants: [level, ratio]        # level: y_h; ratio: y_h - log_rv_m22 (added back after prediction)
+    features: [log_rv_m1, log_rv_m5, log_rv_m22, log_rsn_m1, log_rsp_m1, log_rq_m1,
+               log_mkt_rv_m1, log_mkt_rv_m5, log_mkt_rv_m22, log_vix, ret_m1, neg_ret_m1,
+               jump_share, dow, earnings_afterclose, log_rv_expanding]
+    n_estimators: 500               # upper bound; the number of trees is chosen by early stopping
+    early_stopping_rounds: 50
+    validation_days: 250            # last year before the fit origin, separated by an h-day gap
+    learning_rate: 0.03
+    num_leaves: 15
+    min_child_samples: 100
+    feature_fraction: 0.8
+    bagging_fraction: 0.8
+    lambda_l2: 1.0
+    dist: normal
 
 seed: 20260916

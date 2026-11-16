@@ -48,22 +48,32 @@ be tested directly).
 - Nothing from claude.ai chats is visible here. Anything decided verbally is lost unless it is written
   into `DECISIONS.md` or the memory notes.
 
-## Status (11 Nov 2026)
+## Status (16 Nov 2026)
 
-Done: clean panel and features, decisions 1 to 5 and 7 to 9, data chapter material, Milestone 1 deck,
+Done: clean panel and features, decisions 1 to 5 and 7 to 10, data chapter material, Milestone 1 deck,
 AdaVol rebuilt and validated (`models/adavol.py`), Vilar and SebastianR checked as scripts, scoring
-functions with tests.
+functions with tests. Benchmark models naive, GARCH, GJR, HAR (+ `har_median`) and AdaVol as
+forecast-table models (`models/`, registry `MODELS`), the rolling-origin driver
+(`evaluate/rolling.py`: monthly refits, a forecast every trading day, `forecasts.parquet` +
+`realised.parquet`) and the scores run (`evaluate/run_scores.py`, writes
+`manuscript/tables/scores_volare.md`), all with tests (`tests/test_models.py`, `tests/test_rolling.py`,
+including a no-leakage test). `notes/ffds_course_assessment.md` lists design consequences taken from
+Bergmeir's forecasting course (tree saturation, loss field, pooled HAR, conformal row, CRPS).
+
+LightGBM is in (`models/lightgbm_model.py`, entry 11): pooled, direct per horizon, level and ratio
+targets, each with a `_median` row; one full run takes about 23 minutes. The VOLARE forecast table
+holds ten model rows (1.74 million forecasts) and `manuscript/tables/scores_volare.md` is the first
+results table.
 
 Milestone 2 (due 9 Nov, overdue): forecast table and scores for all models in both settings, results
-chapter draft. Missing, in the order to build them:
+chapter draft. Still missing, in order:
 
-1. Benchmark models from `config.yaml`: naive, GARCH, GJR, HAR, then LightGBM.
-2. Rolling-origin driver: monthly origins from Jan 2018, expanding window, refit each model, write
-   `data/processed/forecasts.parquet`.
-3. Scores run over the forecast table and the results tables and figures for the manuscript.
-4. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
+1. The pooled HAR row (separates pooling from nonlinearity in the LightGBM-vs-HAR comparison).
+2. Results figures for the manuscript (scores by regime, coverage by level, MZ plots); Diebold-Mariano
+   with HAC on the overlapping 20-day forecasts.
+3. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
    the common "distribution to ranks" step for every model.
-5. Results chapter draft in `manuscript/index.qmd`.
+4. Results chapter draft in `manuscript/index.qmd`.
 
 Open with Nicolò (asked 15 Oct 2026, answers not yet logged): which AdaVol to report; whether the
 correlated AdaVol variant may be shown; a fourth M6 method or that time on VOLARE; medrv5 as main

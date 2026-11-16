@@ -57,8 +57,20 @@ Raw data are not in git:
 ```bash
 make panel      # data/processed/panel.parquet   (40 stocks x 2,932 days)
 make features   # data/processed/features.parquet
-make test       # unit tests for the scoring functions
+make forecasts  # data/processed/forecasts.parquet + realised.parquet: all models, rolling origins (minutes)
+make scores     # data/processed/scores*.parquet + manuscript/tables/scores_volare.md
+make test       # unit tests: scoring, models, driver (about a minute)
 ```
+
+On Windows without `make`, call the modules from the venv: `.venv\Scripts\python -m thesis.evaluate.rolling`
+(`--models garch,har --symbols AAPL` for a subset; a subset run replaces only those models in the
+table) and `.venv\Scripts\python -m thesis.evaluate.run_scores`.
+
+Models live in `src/thesis/models/` (one file each; `MODELS` in `__init__.py` is the registry) and all
+return the table described in `models/base.py`. DECISIONS.md entries 10 and 11 state each model's
+specification and the forecast schedule (monthly re-estimation, a forecast every trading day). The
+pooled LightGBM (`lgbm`, `lgbm_ratio`, each with a `_median` row) is fitted on all stocks at once; the
+other models are fitted per stock in parallel.
 
 ## Layout
 

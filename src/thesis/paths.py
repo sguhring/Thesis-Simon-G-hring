@@ -18,6 +18,7 @@ PROCESSED = DATA / "processed"
 PANEL = PROCESSED / "panel.parquet"
 FEATURES = PROCESSED / "features.parquet"
 FORECASTS = PROCESSED / "forecasts.parquet"
+REALISED = PROCESSED / "realised.parquet"
 SCORES = PROCESSED / "scores.parquet"
 
 EXTERNAL = ROOT / "external"   # other teams' M6 code, cloned for validation only (git-ignored)

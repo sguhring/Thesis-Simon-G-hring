@@ -215,3 +215,86 @@ calibration curve) and the VOLARE chapter carries the variance inference.
 **Scoring.** Accuracy losses (QLIKE, MSE) compare the variance forecast with the realised variance on
 the variance scale, never on the log scale (Patton 2011). Calibration scores (coverage, interval
 score, PIT) compare return quantiles derived from the variance forecast with the realised h-day return.
+
+## 10. Benchmark model specifications and the forecast schedule (decided provisionally, 16 Nov 2026)
+
+Set when the benchmark models and the rolling-origin driver were written (`src/thesis/models/`,
+`src/thesis/evaluate/rolling.py`). Each point is a choice Nicolò may want to change; none is costly to
+change because every model writes the same table and the driver reruns in minutes.
+
+**Forecast schedule (the reading of decision 4).** Parameters are re-estimated at the first trading
+day of every month from January 2018 (104 fit origins, expanding window). Between two fit origins the
+parameters are held fixed and a forecast is issued on every trading day with the data up to that day.
+So the test set has about 2,170 one-day forecasts per stock and model, not 104, and the regime
+windows hold enough days to be read (the covid window has about 95, not 5). The 20-day forecasts of
+consecutive days overlap, so their errors are correlated and every test on them uses HAC standard
+errors (Mincer-Zarnowitz; Diebold-Mariano when added). The table records both dates: `origin` (the
+day the forecast is made) and `fit_origin`. Rationale: Hewamalage, Ackermann & Bergmeir (2023) and
+the course notes in `notes/ffds_course_assessment.md`; it is how a forecaster would run these models.
+
+**`var` is the variance of the h-day cumulative return**, the sum of the h daily variance forecasts,
+as the contract in `models/base.py` says. The realised counterpart is the sum of `rv_target` over the
+h days (`realised.parquet`). This is h times the average of decision 9, so QLIKE, which is invariant
+to a common scale, is unchanged by the choice; it matters only for the return intervals, which need
+the cumulative variance.
+
+**Naive**: the mean of `rv_target` over the last 22 trading days, times h.
+
+**GARCH(1,1) and GJR-GARCH(1,1,1)**: `arch`, constant mean, Student-t innovations with the degrees
+of freedom estimated, maximum likelihood on returns in percent. One-day quantiles are analytic. The
+20-day variance is the analytic sum of the daily forecasts; the 20-day return quantiles come from
+2,000 simulated paths of the fitted model (`config.evaluation.n_sims`, seeded), because the sum of
+twenty t shocks with changing variance has no closed form. Analytic variance and simulated quantiles
+differ by Monte Carlo error only.
+
+**HAR** (Corsi 2009): OLS of `y_h` on the 1-, 5- and 22-day averages of log `rv_target`, one
+regression per stock and horizon, on the rows whose target is fully observed at the fit origin
+(t + h <= fit origin). Two rows are written from the same fit: `har` = h exp(mu + s^2/2), the
+conditional mean under normal residuals, and `har_median` = h exp(mu), so the retransformation gap of
+decision 9 is visible in every table.
+
+**AdaVol**: WW Table 1 as published (theta0 = (0.05, 0.90), eta = 0.1), one online pass per stock, no
+re-estimation. The h-day variance is the closed-form sum of the GARCH recursion with theta frozen at
+the origin. Which AdaVol the thesis reports is still the open point of entry 6; the config holds the
+choice.
+
+**Return shape for variance-only models** (naive, HAR, AdaVol): normal, `config.models.<m>.dist`. This
+is the authors' choice for AdaVol (de Vilmarest & Werge 2025) and the simplest for the others; it
+means the calibration comparison against the GARCH-t rows mixes two effects, the variance forecast and
+the tail shape. To separate them a later run sets every model to the same shape (all normal, or all t
+with a common df) as a robustness table. Open.
+
+**Aggregation of scores**: per stock and horizon, the mean over forecast days; then the mean across
+the 40 stocks (`run_scores.py`). The pooled regression (Mincer-Zarnowitz) uses all rows with HAC
+standard errors. QLIKE is also reported relative to GARCH(1,1), the Hansen & Lunde (2005) yardstick.
+
+## 11. The machine-learning representative: LightGBM (decided provisionally, 16 Nov 2026)
+
+`src/thesis/models/lightgbm_model.py`, config `models.lightgbm`. Gradient-boosted trees are the
+method that won M5 and the standard ML choice for tabular forecasting (Bergmeir's course, part 2.06);
+Christensen et al. (2023) and Zhang et al. (2024) use them for realised variance.
+
+- **Pooled across the 40 stocks** (a global model, Montero-Manso & Hyndman 2020): one model per
+  horizon on all stock-days, with the stock's expanding mean of log rv as a feature so the model
+  knows each stock's scale. GARCH and HAR are per stock; the pooled HAR row (to add) separates the
+  pooling gain from the nonlinearity gain.
+- **Direct forecasting**: one model for h = 1 and one for h = 20, target `y_h` of decision 9.
+- **Two targets, both reported.** `lgbm`: the log level. `lgbm_ratio`: the log ratio to the last 22
+  days, prediction added back. A tree's leaves average training targets, so a level model trained
+  before a crisis cannot forecast variance above what it has seen (tree saturation); the ratio target
+  is stationary and removes that ceiling. The gap between the two rows in the crisis regimes measures
+  the mechanism.
+- **Number of trees** by early stopping on the last 250 trading days before each fit origin, with an
+  h-day gap so no validation target overlaps a training row; the model is then refitted on all
+  training rows with that number of trees. The other hyperparameters are frozen in the config
+  (learning rate 0.03, 15 leaves, min 100 rows per leaf, 80 percent feature and row subsampling, L2
+  1.0), not tuned, so that the ML row is not favoured by a search the classical rows did not get.
+  Nothing after the fit origin is used (tested with the no-leakage test of the driver).
+- **Retransformation** as for HAR: `*_median` = h exp(mu); the unsuffixed row = h exp(mu + s^2/2) with
+  s^2 the validation residual variance (out of sample, unlike HAR's in-sample s^2, because boosted
+  trees fit their training rows too closely).
+- **Features** (all through day t): log rv averages over 1, 5, 22 days; signed semivariances and the
+  quarticity (day t); market realised variance averages; log VIX; yesterday's return and its negative
+  part; jump share; weekday; the after-close earnings flag; the expanding mean of log rv.
+- **Return shape**: normal, as the other variance-only models (entry 10, open).
+- Re-estimated at every monthly fit origin like the other models; one pooled fit takes seconds.
