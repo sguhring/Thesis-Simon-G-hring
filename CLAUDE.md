@@ -52,8 +52,9 @@ be tested directly).
 
 Done: clean panel and features, decisions 1 to 5 and 7 to 10, data chapter material, Milestone 1 deck,
 AdaVol rebuilt and validated (`models/adavol.py`), Vilar and SebastianR checked as scripts, scoring
-functions with tests. Benchmark models naive, GARCH, GJR, HAR (+ `har_median`) and AdaVol as
-forecast-table models (`models/`, registry `MODELS`), the rolling-origin driver
+functions with tests. Benchmark models naive, GARCH, GJR, HAR (+ `har_median`), pooled HAR
+(+ `har_pooled_median`, entry 12) and AdaVol as forecast-table models (`models/`, registry
+`MODELS`), the rolling-origin driver
 (`evaluate/rolling.py`: monthly refits, a forecast every trading day, `forecasts.parquet` +
 `realised.parquet`) and the scores run (`evaluate/run_scores.py`, writes
 `manuscript/tables/scores_volare.md`), all with tests (`tests/test_models.py`, `tests/test_rolling.py`,
@@ -62,18 +63,21 @@ Bergmeir's forecasting course (tree saturation, loss field, pooled HAR, conforma
 
 LightGBM is in (`models/lightgbm_model.py`, entry 11): pooled, direct per horizon, level and ratio
 targets, each with a `_median` row; one full run takes about 23 minutes. The VOLARE forecast table
-holds ten model rows (1.74 million forecasts) and `manuscript/tables/scores_volare.md` is the first
-results table.
+holds twelve model rows (2.09 million forecasts) and `manuscript/tables/scores_volare.md` is the first
+results table. The pooled HAR row splits the LightGBM-vs-HAR gap (entry 12): at h = 1 pooling is worth
+nothing and the whole ML gain is the functional form; at h = 20 pooling helps a little (0.922 against
+0.935 relative to GARCH, the best QLIKE in the table) while the nonlinearity costs 0.106, so the
+LightGBM failure at 20 days is the trees overfitting, not the pooling.
 
 Milestone 2 (due 9 Nov, overdue): forecast table and scores for all models in both settings, results
 chapter draft. Still missing, in order:
 
-1. The pooled HAR row (separates pooling from nonlinearity in the LightGBM-vs-HAR comparison).
-2. Results figures for the manuscript (scores by regime, coverage by level, MZ plots); Diebold-Mariano
-   with HAC on the overlapping 20-day forecasts.
-3. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
+1. Results figures for the manuscript (scores by regime, coverage by level, MZ plots; the pooling /
+   nonlinearity ladder of entry 12 as a bar panel); Diebold-Mariano with HAC on the overlapping
+   20-day forecasts. MSIS and PIT are in `evaluate/scores.py` but not yet in `run_scores.py`.
+2. M6-setting pipeline as a module: distribution to quintile probabilities, with correlation, reusing
    the common "distribution to ranks" step for every model.
-4. Results chapter draft in `manuscript/index.qmd`.
+3. Results chapter draft in `manuscript/index.qmd`.
 
 Open with Nicolò (asked 15 Oct 2026, answers not yet logged): which AdaVol to report; whether the
 correlated AdaVol variant may be shown; a fourth M6 method or that time on VOLARE; medrv5 as main

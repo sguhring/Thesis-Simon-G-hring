@@ -28,18 +28,11 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from thesis.models.base import dist_df, forecast_rows
+from thesis.models.base import add_scale_feature, day_index, dist_df, forecast_rows
 
 DEFAULT_FEATURES = ["log_rv_m1", "log_rv_m5", "log_rv_m22", "log_rsn_m1", "log_rsp_m1", "log_rq_m1",
                     "log_mkt_rv_m1", "log_mkt_rv_m5", "log_mkt_rv_m22", "log_vix", "ret_m1", "neg_ret_m1",
                     "jump_share", "dow", "earnings_afterclose", "log_rv_expanding"]
-
-
-def add_scale_feature(f: pd.DataFrame) -> pd.DataFrame:
-    """The stock's expanding mean of log rv up to each day (needs log_rv_m1 = log rv of the day)."""
-    f = f.sort_values(["symbol", "date"]).reset_index(drop=True)
-    f["log_rv_expanding"] = f.groupby("symbol")["log_rv_m1"].transform(lambda s: s.expanding().mean())
-    return f
 
 
 def _params(spec: dict, seed: int) -> dict:
@@ -84,9 +77,7 @@ def fit_predict(features: pd.DataFrame, windows, horizons, cfg: dict, log=None) 
     missing = [c for c in cols if c not in f.columns]
     if missing:
         raise KeyError(f"features missing for LightGBM: {missing}")
-    days = pd.DatetimeIndex(f["date"].drop_duplicates().sort_values())
-    pos = pd.Series(np.arange(len(days)), index=days)
-    f["pos"] = pos.reindex(f["date"]).to_numpy()
+    f, pos = day_index(f)
     X_all = f[cols].to_numpy(dtype=float)
     out, diag = [], []
     for w, (fit_origin, until) in enumerate(windows):

@@ -276,7 +276,7 @@ Christensen et al. (2023) and Zhang et al. (2024) use them for realised variance
 
 - **Pooled across the 40 stocks** (a global model, Montero-Manso & Hyndman 2020): one model per
   horizon on all stock-days, with the stock's expanding mean of log rv as a feature so the model
-  knows each stock's scale. GARCH and HAR are per stock; the pooled HAR row (to add) separates the
+  knows each stock's scale. GARCH and HAR are per stock; the pooled HAR row (entry 12) separates the
   pooling gain from the nonlinearity gain.
 - **Direct forecasting**: one model for h = 1 and one for h = 20, target `y_h` of decision 9.
 - **Two targets, both reported.** `lgbm`: the log level. `lgbm_ratio`: the log ratio to the last 22
@@ -298,3 +298,67 @@ Christensen et al. (2023) and Zhang et al. (2024) use them for realised variance
   part; jump share; weekday; the after-close earnings flag; the expanding mean of log rv.
 - **Return shape**: normal, as the other variance-only models (entry 10, open).
 - Re-estimated at every monthly fit origin like the other models; one pooled fit takes seconds.
+
+## 12. Pooled HAR, the bridge row between HAR and LightGBM (decided, 16 Nov 2026)
+
+`src/thesis/models/har_pooled.py`, config `models.har_pooled`. The HAR regression of entry 10, fitted
+once on all 40 stocks stacked instead of once per stock. Rows `har_pooled` and `har_pooled_median`.
+
+**Why.** The LightGBM-vs-HAR comparison of entry 11 changes two things at once: LightGBM is pooled and
+nonlinear, HAR is per stock and linear, so the QLIKE gap (0.789 against 0.870 relative to GARCH at
+h = 1) cannot be attributed to either. With the pooled linear row the gap splits into a pooling effect
+(`har` -> `har_pooled`) and a nonlinearity effect (`har_pooled` -> `lgbm`), measured on the same data,
+the same schedule and the same loss. It also carries the h = 20 result, where `lgbm` (1.028) loses to
+`har` (0.935): if the pooled row sits near 1.03 the cost is pooling, if it sits near 0.935 the cost is
+the nonlinearity. Pooled linear regression with long lags placed 19th in M5 (Bergmeir's course, part
+2.01; `notes/ffds_course_assessment.md` item 4). A global model is a different claim from a nonlinear
+one and the model chapter states them separately.
+
+**Stock scale.** Per stock the intercept absorbs each stock's volatility level; one shared intercept
+cannot. On the log scale a level difference is an additive shift and the regressors are log rv of the
+same stock, so a model with b1 + b5 + b22 = 1 would be exactly scale-free; the fitted sum is below 1
+(mean reversion), so some level dependence survives. Two options:
+
+- (a) add the stock's expanding mean of log rv (`log_rv_expanding`) as a fourth regressor;
+- (b) stock fixed effects, i.e. 40 intercepts.
+
+**Decision: (a).** It is the feature the pooled LightGBM already receives (entry 11; course item 5), so
+the pooled HAR becomes the literal linear counterpart of the LightGBM feature set restricted to the
+HAR lags, and the `har_pooled` -> `lgbm` step isolates the functional form. (b) reintroduces 40
+stock-specific parameters, so it is no longer the pooled end of the ladder and the pooling effect would
+no longer be what the step measures; it stays available as a robustness row (`scale_feature: false`
+plus dummies) if a reader asks for it. Parameters along the ladder: `har` 4 per stock (160 in all),
+`har_pooled` 5, `lgbm` several hundred trees.
+
+**Everything else follows entry 10 unchanged**, so that `har` and `har_pooled` differ in exactly one
+thing: OLS at every monthly fit origin on the rows whose target is fully observed by then
+(t + h <= fit origin, now on the global trading-day index of the balanced panel), expanding window, no
+hyperparameter tuning (OLS has none to tune, which is also why this row cannot be accused of the
+search the classical rows did not get), the in-sample residual variance for the retransformation
+(`har_pooled` = h exp(mu + s^2/2), `har_pooled_median` = h exp(mu)) rather than LightGBM's validation
+residuals, and a normal return shape. One fit per window and horizon on about 80,000 rows.
+
+**Evidence (16 Nov 2026).** One run, 166 s, `--models har_pooled`; the VOLARE forecast table now holds
+twelve model rows (2,089,920 forecasts). QLIKE relative to GARCH(1,1), from
+`manuscript/tables/scores_volare.md`:
+
+| horizon | `har` (per stock) | `har_pooled` | `lgbm` | pooling effect | nonlinearity effect |
+|---|---|---|---|---|---|
+| 1  | 0.870 | 0.869 | 0.789 | -0.001 | **-0.080** |
+| 20 | 0.935 | 0.922 | 1.028 | **-0.013** | **+0.106** |
+
+- At h = 1 pooling is worth nothing (0.870 against 0.869): with about 2,170 pre-origin rows per stock
+  for four parameters there is no data-scarcity gain to collect, which is the condition under which
+  global models pay (Montero-Manso & Hyndman 2020). The entire LightGBM advantage at h = 1 is the
+  functional form, not the 40-fold training set.
+- At h = 20 the two effects point in opposite directions: pooling helps a little and the nonlinearity
+  costs ten times as much as pooling saves. `har_pooled` is the best model in the table at h = 20 on
+  QLIKE (0.922) and on MSE (154.3 against 158.0 for `har`, 175.8 for `lgbm`), with five parameters.
+  So the h = 20 failure of LightGBM is overfitting of the 20-day target by the trees, not the pooling.
+- Pooling also improves the Mincer-Zarnowitz slope, 0.970 -> 0.984 at h = 1 and 0.933 -> 0.960 at
+  h = 20, and `har_pooled` has the coverage closest to nominal of any row at h = 20 (0.904 / 0.944 /
+  0.979 against 0.90 / 0.95 / 0.99). Sharing one rule across the panel appears to damp the
+  stock-specific estimation noise that the per-stock fit carries into the tail of the distribution.
+- The fitted rule is stable across the 104 windows: the three HAR lag coefficients sum to 0.897 at
+  h = 1 and 0.70 at h = 20 (the mean reversion the single shared intercept cannot absorb is taken up
+  by the scale feature), with in-sample residual variance 0.43 and 0.35.

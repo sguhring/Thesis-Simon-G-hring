@@ -14,13 +14,14 @@ from __future__ import annotations
 
 from functools import partial
 
-from thesis.models import adavol_forecast, garch, har, lightgbm_model, naive
+from thesis.models import adavol_forecast, garch, har, har_pooled, lightgbm_model, naive
 
 MODELS = {
     "naive": naive.fit_predict,
     "garch": partial(garch.fit_predict, spec="garch"),
     "gjr": partial(garch.fit_predict, spec="gjr"),
     "har": har.fit_predict,
+    "har_pooled": har_pooled.fit_predict,   # pooled (decision 12)
     "adavol": adavol_forecast.fit_predict,
     "lgbm": lightgbm_model.fit_predict,       # pooled: receives all stocks at once (attribute `pooled`)
 }

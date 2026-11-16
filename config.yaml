@@ -75,6 +75,7 @@ models:
   garch:   {p: 1, q: 1, dist: t}
   gjr:     {p: 1, o: 1, q: 1, dist: t}
   har:     {lags: [1, 5, 22], dist: normal}
+  har_pooled: {lags: [1, 5, 22], scale_feature: true, dist: normal}   # DECISIONS.md #12
   adavol:  {theta0: [0.05, 0.90], eta: 0.1, dist: normal}   # WW Table 1 as published (open: entry 6)
   lightgbm:          # DECISIONS.md #11: pooled across stocks, one model per horizon and target variant
     pooled: true

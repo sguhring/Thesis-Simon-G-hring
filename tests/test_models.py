@@ -4,9 +4,9 @@ import pytest
 
 from thesis.evaluate.rolling import fit_windows
 from thesis.models import MODELS
-from thesis.models import adavol_forecast, garch, har, lightgbm_model, naive
+from thesis.models import adavol_forecast, garch, har, har_pooled, lightgbm_model, naive
 from thesis.models.adavol import adavol
-from thesis.models.base import qcol
+from thesis.models.base import add_scale_feature, qcol
 
 QCOLS = ["q_0.005", "q_0.025", "q_0.05", "q_0.25", "q_0.5", "q_0.75", "q_0.95", "q_0.975", "q_0.995"]
 
@@ -135,6 +135,56 @@ def test_adavol_rows_are_the_recursion_and_its_closed_form_sum(features, cfg):
         total += step
         step = g2 + a_b * (step - g2)
     assert fc[fc["horizon"] == 20]["var"].iloc[0] == pytest.approx(total)
+
+
+def test_har_pooled_is_one_shared_rule_for_every_stock(features, cfg):
+    """The pooled fit gives one set of coefficients; recomputing the linear predictor from them
+    reproduces both stocks' forecasts, which a per-stock fit could not do."""
+    windows = fit_windows(features["date"], cfg)[:1]
+    fc = har_pooled.fit_predict(features, windows, [1], cfg)
+    assert set(fc["model"]) == {"har_pooled", "har_pooled_median"}
+    assert set(fc["symbol"]) == {"AAA", "BBB"}
+    diag = fc.attrs["diagnostics"]
+    assert len(diag) == 1 and diag["n_train"].iloc[0] > 0
+    cols = ["log_rv_m1", "log_rv_m5", "log_rv_m22", "log_rv_expanding"]
+    d = diag.iloc[0]
+    beta = np.array([d["const"]] + [d[c] for c in cols])
+    f = add_scale_feature(features.copy())
+    f = f[(f["date"] >= windows[0][0]) & (f["date"] < windows[0][1])].reset_index(drop=True)
+    X = np.column_stack([np.ones(len(f)), f[cols].to_numpy(dtype=float)])
+    med = fc[fc["model"] == "har_pooled_median"].reset_index(drop=True)
+    assert np.allclose(med["var"].to_numpy(), np.exp(X @ beta))
+    # the mean-corrected row is exp(s^2 / 2) above it, with s^2 the in-sample residual variance
+    mean = fc[fc["model"] == "har_pooled"].reset_index(drop=True)
+    assert np.allclose(mean["var"] / med["var"], np.exp(d["s2"] / 2))
+    # the three HAR lags carry most of the persistence; the scale feature is a level, not a lag
+    assert 0.5 < d["lag_sum"] < 1.1
+
+
+def test_har_pooled_differs_from_the_per_stock_fit(features, cfg):
+    windows = fit_windows(features["date"], cfg)[:1]
+    pooled = har_pooled.fit_predict(features, windows, [1], cfg)
+    pooled = pooled[(pooled["model"] == "har_pooled_median") & (pooled["symbol"] == "AAA")]
+    g = features[features["symbol"] == "AAA"].reset_index(drop=True)
+    per_stock = har.fit_predict(g, windows, [1], cfg)
+    per_stock = per_stock[per_stock["model"] == "har_median"]
+    assert len(pooled) == len(per_stock)
+    assert not np.allclose(pooled["var"].to_numpy(), per_stock["var"].to_numpy())
+
+
+def test_har_pooled_fits_only_on_targets_observed_by_the_fit_origin(features, cfg):
+    windows = fit_windows(features["date"], cfg)[1:2]
+    days = pd.DatetimeIndex(features["date"].drop_duplicates().sort_values())
+    k = int(days.searchsorted(windows[0][0]))
+    base = har_pooled.fit_predict(features, windows, [20], cfg)
+    # the 20-day targets of rows whose window reaches past the fit origin are not in the fit
+    later = features.copy()
+    later.loc[later["date"] >= days[k - 19], "y_h20"] += 5.0
+    assert np.allclose(har_pooled.fit_predict(later, windows, [20], cfg)["var"], base["var"])
+    # the last row that is fully observed by the fit origin is
+    earlier = features.copy()
+    earlier.loc[earlier["date"] == days[k - 20], "y_h20"] += 5.0
+    assert not np.allclose(har_pooled.fit_predict(earlier, windows, [20], cfg)["var"], base["var"])
 
 
 def test_lightgbm_pooled_rows_and_variants(features, cfg):

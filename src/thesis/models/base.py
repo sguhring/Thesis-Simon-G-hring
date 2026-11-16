@@ -109,3 +109,28 @@ def dist_df(spec: dict) -> float | None:
     if dist == "t":
         return float(spec.get("df", 5))
     raise ValueError(f"unknown dist {dist!r}; use 'normal' or 't'")
+
+
+def add_scale_feature(f: pd.DataFrame) -> pd.DataFrame:
+    """The stock's expanding mean of log rv up to each day, as a column `log_rv_expanding`.
+
+    A pooled model has no per-stock intercept, so it needs the stock's own volatility level as a
+    feature (decisions 11 and 12). Expanding, so it uses only days up to and including each row.
+    Needs `log_rv_m1`, which is the log realised variance of the day itself.
+    """
+    f = f.sort_values(["symbol", "date"]).reset_index(drop=True)
+    f["log_rv_expanding"] = f.groupby("symbol")["log_rv_m1"].transform(lambda s: s.expanding().mean())
+    return f
+
+
+def day_index(f: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """Add a `pos` column: the position of each row's date in the panel's trading-day calendar.
+
+    A pooled model fits on all stocks at once, so the "is this target observed by the fit origin"
+    rule (t + h <= fit origin) is applied on this global index instead of a per-stock position.
+    Returns the frame and the date -> position map.
+    """
+    days = pd.DatetimeIndex(f["date"].drop_duplicates().sort_values())
+    pos = pd.Series(np.arange(len(days)), index=days)
+    f["pos"] = pos.reindex(f["date"]).to_numpy()
+    return f, pos

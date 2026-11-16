@@ -37,8 +37,8 @@ def test_driver_covers_every_model_stock_day_and_horizon(forecasts, features, cf
     w = fit_windows(features["date"], cfg)
     n_days = int((features["date"].drop_duplicates() >= w[0][0]).sum())
     counts = forecasts.groupby(["model", "symbol", "horizon"]).size()
-    expected = {"naive", "garch", "gjr", "har", "har_median", "adavol",
-                "lgbm", "lgbm_median", "lgbm_ratio", "lgbm_ratio_median"}
+    expected = {"naive", "garch", "gjr", "har", "har_median", "har_pooled", "har_pooled_median",
+                "adavol", "lgbm", "lgbm_median", "lgbm_ratio", "lgbm_ratio_median"}
     assert set(forecasts["model"]) == expected
     assert (counts == n_days).all()
     assert forecasts["fit_origin"].notna().all()
